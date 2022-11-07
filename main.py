@@ -1,14 +1,17 @@
 from bs4 import BeautifulSoup
 from selenium import webdriver
-import time
+from selenium.webdriver.common.by import By
+from datetime import datetime
+
 import math
 import requests
+import time
 
 
 def main():
     url = "https://www.halooglasi.com/nekretnine/izdavanje-stanova/beograd?cena_d_from=400&cena_d_to=600&cena_d_unit=4&oglasivac_nekretnine_id_l=387237&nacin_placanja_id_l=387273"
-    print(get_list_of_apartments(url))
-    # get_apartment_data()
+    temp = get_list_of_apartments(url)
+    print(get_apartment_data(temp[10]))
     # push_list_to_google_sheet()
 
 
@@ -27,9 +30,9 @@ def get_list_of_apartments(search_url: str) -> list:
 
     # finds all urls for apartments on page 1
     links = soup.find_all("h3", class_="product-title")
-    result = []
 
     # makes a list of links
+    result = []
     for link in links:
         result.append(f"https://www.halooglasi.com{link.find('a').attrs['href']}")
 
@@ -51,19 +54,37 @@ def get_list_of_apartments(search_url: str) -> list:
         for link in links:
             result.append(f"https://www.halooglasi.com{link.find('a').attrs['href']}")
 
-    # returns a list with all apartments urls
+    # returns a list with all apartments urls from all pages
     return result
 
+
+# takes apartment_url and returns a dict with price/square/phone/publicshed parameters for this apartment
 def get_apartment_data(apartment_url: str) -> dict:
-    ...
+    # init
+    # clicks a button to reveal phone number
+    browser = webdriver.Chrome()
+    browser.get(apartment_url)
+    browser.find_element(By.TAG_NAME, "em").click()
+
+    # need to wait till whole page has been loaded
+    time.sleep(3)
+
+    # passes source to bs
+    soup = BeautifulSoup(browser.page_source, 'html.parser')
+
+    # gets parameters - price/phone/pubished/square
+    price = int(soup.find("span", class_="offer-price-value").contents[0])
+    phone = soup.find("div", class_="col-sm-10 bold-15 contact-advertiser-details right-phone-1").find("a").attrs[
+                "href"][4:]
+    published = datetime.strptime(str(soup.find("strong", id="plh82").contents), "['%d.%m.%Y. u %H:%M']")
+    square = str(soup.find("span", id="plh11").contents)[2:4]
+
+    # returns a dict with params
+    return {"price": price, "phone": phone, "published": str(published), "square": square}
 
 
 def push_list_to_google_sheet():
     ...
-
-#
-# current_page = soup.find("span", class_="current")
-# print("page number is ", current_page)
 
 if __name__ == '__main__':
     main()
